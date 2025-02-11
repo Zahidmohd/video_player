@@ -15,7 +15,8 @@ export default function VideoAnnotator() {
   const [endTime, setEndTime] = useState<string | null>(null)
   const [comment, setComment] = useState("")
   const [showCommentInput, setShowCommentInput] = useState(false)
-  const [isPlaying, setIsPlaying] = useState(false)  // New state for play/pause
+  const [isPlaying, setIsPlaying] = useState(false) // New state for play/pause
+  const [annotations, setAnnotations] = useState<Annotation[]>([]) // Added annotations state
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -91,6 +92,7 @@ export default function VideoAnnotator() {
       comment,
     }
 
+    setAnnotations([...annotations, annotation]) // Update annotations state
     console.log(JSON.stringify(annotation, null, 2))
 
     // Reset state
@@ -109,7 +111,7 @@ export default function VideoAnnotator() {
       } else {
         videoRef.current.play()
       }
-      setIsPlaying(!isPlaying)  // Toggle playing state
+      setIsPlaying(!isPlaying) // Toggle playing state
     }
   }
 
@@ -133,6 +135,30 @@ export default function VideoAnnotator() {
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         >
+          {annotations.map((annotation) => {
+            const start =
+              Number.parseFloat(annotation.startTime.split(":")[0]) * 60 +
+              Number.parseFloat(annotation.startTime.split(":")[1])
+            const end =
+              Number.parseFloat(annotation.endTime.split(":")[0]) * 60 +
+              Number.parseFloat(annotation.endTime.split(":")[1])
+
+            if (currentTime >= start && currentTime <= end) {
+              return (
+                <div
+                  key={annotation.id}
+                  className="absolute border-2 border-orange-500"
+                  style={{
+                    left: Math.min(annotation.shape.startX, annotation.shape.endX),
+                    top: Math.min(annotation.shape.startY, annotation.shape.endY),
+                    width: Math.abs(annotation.shape.endX - annotation.shape.startX),
+                    height: Math.abs(annotation.shape.endY - annotation.shape.startY),
+                  }}
+                />
+              )
+            }
+            return null
+          })}
           {currentRectangle && (
             <div
               className="absolute border-2 border-orange-500"
@@ -148,17 +174,30 @@ export default function VideoAnnotator() {
 
         {/* Progress bar */}
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-neutral-600">
+          {/* Video progress */}
           <div
             className="h-full bg-orange-500"
             style={{
               width: `${(currentTime / duration) * 100}%`,
             }}
           />
+
+          {/* Annotation time range */}
           {startTime && (
             <div
-              className="absolute bottom-0 w-1 h-3 bg-orange-500"
+              className="absolute bottom-0 h-full bg-orange-300/50"
               style={{
                 left: `${((Number.parseFloat(startTime.split(":")[0]) * 60 + Number.parseFloat(startTime.split(":")[1])) / duration) * 100}%`,
+                width: endTime
+                  ? `${
+                      ((Number.parseFloat(endTime.split(":")[0]) * 60 +
+                        Number.parseFloat(endTime.split(":")[1]) -
+                        (Number.parseFloat(startTime.split(":")[0]) * 60 +
+                          Number.parseFloat(startTime.split(":")[1]))) /
+                        duration) *
+                      100
+                    }%`
+                  : `${((currentTime - (Number.parseFloat(startTime.split(":")[0]) * 60 + Number.parseFloat(startTime.split(":")[1]))) / duration) * 100}%`,
               }}
             />
           )}
@@ -179,23 +218,41 @@ export default function VideoAnnotator() {
             <div className="flex items-center gap-2">
               <span>{startTime}</span>
               <span>-</span>
-              <Input
-                type="range"
-                min={
-                  startTime
-                    ? Number.parseFloat(startTime.split(":")[0]) * 60 + Number.parseFloat(startTime.split(":")[1])
-                    : 0
-                }
-                max={duration}
-                step="0.01"
-                value={
-                  endTime
-                    ? Number.parseFloat(endTime.split(":")[0]) * 60 + Number.parseFloat(endTime.split(":")[1])
-                    : currentTime
-                }
-                onChange={(e) => setEndTime(formatTimeStamp(Number.parseFloat(e.target.value)))}
-                className="flex-1"
-              />
+              <div className="relative flex-1 h-6">
+                <div className="absolute inset-0 bg-neutral-800 rounded-full">
+                  <div
+                    className="absolute h-full bg-orange-500/30 rounded-full"
+                    style={{
+                      left: `${((Number.parseFloat(startTime?.split(":")[0] || "0") * 60 + Number.parseFloat(startTime?.split(":")[1] || "0")) / duration) * 100}%`,
+                      width: `${
+                        ((Number.parseFloat(endTime?.split(":")[0] || currentTime.toString()) * 60 +
+                          Number.parseFloat(endTime?.split(":")[1] || "0") -
+                          (Number.parseFloat(startTime?.split(":")[0] || "0") * 60 +
+                            Number.parseFloat(startTime?.split(":")[1] || "0"))) /
+                          duration) *
+                        100
+                      }%`,
+                    }}
+                  />
+                </div>
+                <Input
+                  type="range"
+                  min={
+                    startTime
+                      ? Number.parseFloat(startTime.split(":")[0]) * 60 + Number.parseFloat(startTime.split(":")[1])
+                      : 0
+                  }
+                  max={duration}
+                  step="0.01"
+                  value={
+                    endTime
+                      ? Number.parseFloat(endTime.split(":")[0]) * 60 + Number.parseFloat(endTime.split(":")[1])
+                      : currentTime
+                  }
+                  onChange={(e) => setEndTime(formatTimeStamp(Number.parseFloat(e.target.value)))}
+                  className="relative z-10 w-full h-full opacity-0 cursor-pointer"
+                />
+              </div>
               <span>{endTime || formatTimeStamp(currentTime)}</span>
             </div>
           </div>
@@ -216,3 +273,4 @@ export default function VideoAnnotator() {
     </div>
   )
 }
+
